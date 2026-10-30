@@ -732,7 +732,7 @@
         if(method==='phone'){
           otpContext={type:'sms',phone:id};
           $('otpSub').textContent='Mã OTP đã gửi tới '+id+'.'; $('otp').value=''; show('otpView'); toast('Đã gửi mã OTP qua SMS.');
-        }else{ toast('Đăng ký thành công! Hãy kiểm tra email để xác nhận tài khoản.'); mode='login'; refreshAuthUI(); }
+        }else{ toast('Đăng ký thành công! Hãy kiểm tra hộp thư rác hoặc hộp thư spam của gmail để xác nhận tài khoản.'); mode='login'; refreshAuthUI(); }
       }else{
         const {error}=await _supabase.auth.signInWithPassword({...cred,password});
         if(error) throw error;
@@ -776,7 +776,7 @@
         if(!validEmail(email)) throw new Error('Email không hợp lệ.');
         const {error}=await _supabase.auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]});
         if(error) throw error;
-        toast('Nếu email tồn tại, liên kết đặt lại mật khẩu đã được gửi. Hãy kiểm tra hộp thư.');
+        toast('Nếu email tồn tại, liên kết đặt lại mật khẩu đã được gửi. Hãy kiểm tra hộp thư rác hoặc hộp thư spam của gmail.');
       }else{
         const phone=normPhone($('fPhone').value);
         if(!validPhone(phone)) throw new Error('Số điện thoại không hợp lệ.');
