@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+0<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -982,13 +982,15 @@
     else { $('adminCode').value=''; openModal('mAdmin'); }
   };
 
-  $('adminCodeBtn').onclick=()=>busy($('adminCodeBtn','Đang kiểm tra...',async()=>{
-    const code=$('adminCode').value.trim();
-    if(!code) throw new Error('Vui lòng nhập mã Admin.');
-    await rpc('redeem_admin_code',{p_code:code});
+  $('adminCodeBtn').onclick = () => busy($('adminCodeBtn'), 'Đang kiểm tra...', async () => {
+    const code = $('adminCode').value.trim();
+    if (!code) throw new Error('Vui lòng nhập mã Admin.');
+    await rpc('redeem_admin_code', { p_code: code });
     await refreshAdmin();
-    closeModals(); toast('Xác nhận thành công! Bạn đã là Admin trong 24 giờ 👑'); openAdmin();
-  }));
+    closeModals();
+    toast('Xác nhận thành công! Bạn đã là Admin trong 24 giờ 👑');
+    openAdmin();
+});
   $('adminCode').addEventListener('keydown',e=>{ if(e.key==='Enter') $('adminCodeBtn').click(); });
 
   function bindGen(passId,btnId,outId){
