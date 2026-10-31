@@ -823,7 +823,7 @@
     }
   }
 
-  // ====== QUẢN LÝ FILE: UPLOAD, XEM ẢNH, TẢI VỀ (Đã sửa lỗi hiển thị file) ======
+  // ====== QUẢN LÝ FILE: UPLOAD, XEM ẢNH, TẢI VỀ (Sửa lỗi hiển thị file) ======
   const dropZone = $('dropZone'), fileInput = $('fileInput');
   dropZone.onclick = () => fileInput.click();
   dropZone.ondragover = e => { e.preventDefault(); dropZone.style.borderColor = 'var(--primary)'; };
@@ -865,22 +865,23 @@
     const listEl = $('fileList');
     listEl.innerHTML = '<li class="empty">Đang tải danh sách file...</li>';
     try {
-      const { data, error } = await _supabase.storage.from('user_files').list('', {
+      const { data, error } = await _supabase.storage.from('user_files').list(currentUser.id, {
         limit: 100,
         sortBy: { column: 'updated_at', order: 'desc' }
       });
       if(error) throw error;
       
-      const userFiles = (data || []).filter(file => file.name.startsWith(currentUser.id + '/') || file.name.includes(currentUser.id));
-      
+      const userFiles = data || [];
       $('fileCountText').textContent = `${userFiles.length} file`;
+      
       if(userFiles.length === 0){
         listEl.innerHTML = '<li class="empty">Chưa có file nào trên hệ thống.</li>';
         return;
       }
+      
       listEl.innerHTML = '';
       for(const file of userFiles){
-        const filePath = file.name.includes('/') ? file.name : `${currentUser.id}/${file.name}`;
+        const filePath = `${currentUser.id}/${file.name}`;
         const { data: publicUrlData } = _supabase.storage.from('user_files').getPublicUrl(filePath);
         const fileUrl = publicUrlData.publicUrl;
         const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(file.name);
@@ -902,10 +903,11 @@
         }
 
         const infoDiv = document.createElement('div');
-        const rawName = file.name.split('/').pop();
+        const displayName = file.name.includes('_') ? file.name.split('_').slice(1).join('_') : file.name;
         const nameDiv = document.createElement('b'); 
-        nameDiv.textContent = rawName.split('_').slice(1).join('_') || rawName;
+        nameDiv.textContent = displayName;
         nameDiv.style.fontSize = '14px';
+        
         const metaSpan = document.createElement('span'); metaSpan.className = 'time';
         metaSpan.textContent = `Kích thước: ${(file.metadata?.size ? (file.metadata.size/1024).toFixed(1) + ' KB' : '—')} · ${fmt(file.created_at)}`;
         infoDiv.append(nameDiv, metaSpan);
@@ -916,13 +918,13 @@
         if(isImage){
           const viewBtn = document.createElement('button');
           viewBtn.innerHTML = '👁️'; viewBtn.title = 'Xem ảnh lớn';
-          viewBtn.onclick = () => openImageViewer(fileUrl, rawName);
+          viewBtn.onclick = () => openImageViewer(fileUrl, file.name);
           actDiv.appendChild(viewBtn);
         }
 
         const dlBtn = document.createElement('button');
         dlBtn.innerHTML = '📥'; dlBtn.title = 'Tải file về máy';
-        dlBtn.onclick = () => downloadFile(fileUrl, rawName);
+        dlBtn.onclick = () => downloadFile(fileUrl, file.name);
         actDiv.appendChild(dlBtn);
 
         const copyBtn = document.createElement('button');
@@ -933,7 +935,7 @@
         const delBtn = document.createElement('button');
         delBtn.innerHTML = '🗑️'; delBtn.title = 'Xóa file';
         delBtn.onclick = async () => {
-          if(!confirm(`Xóa file này?`)) return;
+          if(!confirm(`Bạn có chắc muốn xóa file này?`)) return;
           const { error: delErr } = await _supabase.storage.from('user_files').remove([filePath]);
           if(delErr) return toast('Lỗi khi xóa file', 'error');
           toast('Đã xóa file thành công!');
@@ -946,13 +948,14 @@
         listEl.appendChild(li);
       }
     } catch(err) {
+      console.error(err);
       listEl.innerHTML = '<li class="empty">Không tải được danh sách file.</li>';
     }
   }
 
   function openImageViewer(url, filename){
     $('modalFullImg').src = url;
-    $('imgModalTitle').textContent = filename.split('_').slice(1).join('_') || filename;
+    $('imgModalTitle').textContent = filename.includes('_') ? filename.split('_').slice(1).join('_') : filename;
     $('modalDownloadBtn').onclick = () => downloadFile(url, filename);
     openModal('mImageViewer');
   }
@@ -964,7 +967,7 @@
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = filename.split('_').slice(1).join('_') || filename;
+      a.download = filename.includes('_') ? filename.split('_').slice(1).join('_') : filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
