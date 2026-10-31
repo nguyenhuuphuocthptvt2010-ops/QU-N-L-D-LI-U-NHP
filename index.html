@@ -214,6 +214,10 @@
   .cardlink .big{font-size:30px}
   .cardlink b{display:block;margin:6px 0 2px}
   .cardlink small{color:var(--muted);word-break:break-all}
+  .qth,.fth{width:38px;height:38px;border-radius:8px;object-fit:cover;cursor:pointer;flex:none;background:#0b1126}
+  .fth{width:46px;height:46px;margin-right:10px}
+  .imgcard .bt{flex-wrap:wrap}
+  .imgcard .bt button.dg{background:rgba(255,92,108,.25)}
   .imggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;max-height:520px;overflow:auto;padding-right:4px}
   .imgcard{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.05);overflow:hidden;font-size:12px}
   .imgcard .th{height:110px;background:#0b1126 center/cover no-repeat;cursor:pointer}
@@ -549,6 +553,7 @@
               <button class="btn ghost" id="iRefresh" type="button">↻</button></div>
             <p class="hint" id="iCount" style="margin:0 0 10px"></p>
             <div class="imggrid" id="iGrid"></div>
+            <input type="file" id="iReplaceInput" accept="image/*" class="hidden">
           </div>
         </div>
 
@@ -1721,12 +1726,23 @@
     $('upOverall').classList.add('hidden');
     renderQueue();
   }
+  const isImg=(name,mime)=>/^image\//.test(mime||'')||/\.(jpe?g|png|gif|webp|bmp|svg|heic|avif)$/i.test(name||'');
+  function openLocalImage(url,name,size){
+    imgCur=null; $('imgTitle').textContent=name; $('imgMeta').textContent=fmtSize(size||0)+' · ảnh sẽ được tải lên';
+    $('imgBig').src=url; $('imgDl').classList.add('hidden'); openModal('mImg');
+  }
   function renderQueue(){
     const box=$('upQueue'); box.innerHTML='';
     pendingFiles.forEach((it,i)=>{
       const d=document.createElement('div'); d.className='upitem'; it.el=d;
       d.innerHTML='<div class="top"><span class="nm"></span><span class="pc"></span><button class="x" type="button" title="Bỏ file này">✕</button></div><div class="pbar"><i></i></div>';
       d.querySelector('.nm').textContent=(i+1)+'. '+it.file.name+' ('+fmtSize(it.file.size)+')';
+      if(isImg(it.file.name,it.file.type)){
+        if(!it.prev) it.prev=URL.createObjectURL(it.file);
+        const im=document.createElement('img'); im.className='qth'; im.src=it.prev; im.title='Bấm để xem ảnh';
+        im.onclick=()=>openLocalImage(it.prev,it.file.name,it.file.size);
+        d.querySelector('.top').prepend(im);
+      }
       d.querySelector('.x').onclick=()=>{ if(uploading) return; pendingFiles.splice(i,1); renderQueue(); };
       box.appendChild(d); updItem(it);
     });
@@ -1800,14 +1816,24 @@
     if(error){ list.innerHTML='<li class="empty">Không tải được danh sách file. Hãy chạy file SQL nâng cấp trên Supabase.</li>'; console.error(error); return; }
     $('fileCountText').textContent=data.length+' file';
     if(!data.length){ list.innerHTML='<li class="empty">Bạn chưa tải file nào lên.</li>'; return; }
+    const imgPaths=data.filter(f=>isImg(f.name,f.mime)).map(f=>f.path), urlMap={};
+    if(imgPaths.length){
+      const {data:us}=await _supabase.storage.from(BUCKET).createSignedUrls(imgPaths,600);
+      (us||[]).forEach(u=>{ if(u.path&&u.signedUrl) urlMap[u.path]=u.signedUrl; });
+    }
     data.forEach(f=>{
       const li=document.createElement('li'), box=document.createElement('div'); box.className='txt';
-      const t=document.createElement('div'); t.textContent='📄 '+f.name;
+      const t=document.createElement('div'); t.textContent=(isImg(f.name,f.mime)?'🖼️ ':'📄 ')+f.name;
       const m=document.createElement('span'); m.className='time'; m.textContent=fmtSize(f.size||0)+' · '+fmt(f.created_at);
       box.append(t,m);
       const act=document.createElement('div'); act.className='act';
       const dl=document.createElement('button'); dl.textContent='⬇️'; dl.title='Tải xuống';
       const del=document.createElement('button'); del.textContent='🗑'; del.title='Xóa';
+      if(isImg(f.name,f.mime)){
+        const vw=document.createElement('button'); vw.textContent='👁'; vw.title='Xem ảnh'; act.prepend(vw);
+        const open=()=>openImage(f,urlMap[f.path]); vw.onclick=open;
+        if(urlMap[f.path]){ const th=document.createElement('img'); th.className='fth'; th.src=urlMap[f.path]; th.alt=''; th.onclick=open; li.append(th); }
+      }
       act.append(dl,del); li.append(box,act); list.appendChild(li);
       dl.onclick=async()=>{
         const {data:u,error:e}=await _supabase.storage.from(BUCKET).createSignedUrl(f.path,120,{download:f.name});
@@ -1959,13 +1985,15 @@
       const map={}; (urls||[]).forEach(u=>{ if(u.path&&u.signedUrl) map[u.path]=u.signedUrl; });
       files.forEach(f=>{
         const c=document.createElement('div'); c.className='imgcard';
-        c.innerHTML='<div class="th"></div><div class="in"><b></b><small class="o"></small><small class="m"></small><div class="bt"><button type="button" data-v>👁 Xem</button><button type="button" data-d>⬇️ Tải</button></div></div>';
+        c.innerHTML='<div class="th"></div><div class="in"><b></b><small class="o"></small><small class="m"></small><div class="bt"><button type="button" data-v>👁 Xem</button><button type="button" data-d>⬇️ Tải</button><button type="button" data-r>🔄 Thay ảnh</button><button type="button" class="dg" data-x>🗑 Xóa</button></div></div>';
         const th=c.querySelector('.th'); if(map[f.path]) th.style.backgroundImage='url("'+map[f.path]+'")';
         c.querySelector('b').textContent=f.name;
         c.querySelector('.o').textContent='👤 '+(f.email||f.full_name||f.user_id);
         c.querySelector('.m').textContent=fmtSize(f.size||0)+' · '+fmt(f.created_at);
         const view=()=>openImage(f,map[f.path]);
         th.onclick=view; c.querySelector('[data-v]').onclick=view; c.querySelector('[data-d]').onclick=()=>adminDownload(f);
+        c.querySelector('[data-r]').onclick=()=>{ replaceTarget=f; $('iReplaceInput').click(); };
+        c.querySelector('[data-x]').onclick=()=>adminDeleteFile(f);
         grid.appendChild(c);
       });
     }catch(err){ grid.innerHTML='<div class="empty" style="grid-column:1/-1">'+esc(translateError(err.message))+'</div>'; }
@@ -1974,12 +2002,51 @@
     imgCur=f;
     $('imgTitle').textContent=f.name;
     $('imgMeta').textContent='👤 '+(f.email||f.full_name||f.user_id)+' · '+fmtSize(f.size||0)+' · '+fmt(f.created_at);
-    $('imgBig').src=''; openModal('mImg');
+    $('imgBig').src=''; $('imgDl').classList.remove('hidden'); openModal('mImg');
     try{ $('imgBig').src=url||await adminSignedUrl(f.path); }catch(err){ toast('Không mở được ảnh: '+translateError(err.message||''),'error'); }
   }
   $('imgDl').onclick=()=>{ if(imgCur) adminDownload(imgCur); };
   $('iSearch').addEventListener('input',()=>{ clearTimeout(iTimer); iTimer=setTimeout(loadAdminImages,350); });
   $('iRefresh').onclick=loadAdminImages;
+
+
+  // --- Admin: xóa / thay đổi hình ảnh người dùng đã tải lên ---
+  let replaceTarget=null;
+  async function adminDeleteFile(f){
+    if(!confirm('Xóa vĩnh viễn ảnh "'+f.name+'" của '+(f.email||f.full_name||f.user_id)+'?')) return;
+    try{
+      const {error}=await _supabase.storage.from(BUCKET).remove([f.path]);
+      if(error) throw error;
+      await rpc('admin_delete_file',{p_id:f.id});
+      toast('Đã xóa ảnh.'); loadAdminImages();
+    }catch(err){ toast('Không xóa được: '+translateError(err.message||String(err)),'error'); }
+  }
+  $('iReplaceInput').onchange=async e=>{
+    const file=e.target.files&&e.target.files[0]; e.target.value='';
+    const f=replaceTarget; replaceTarget=null;
+    if(!file||!f) return;
+    if(!/^image\//.test(file.type)) return toast('Chỉ được thay bằng một file ảnh.','error');
+    if(file.size>MAX_FILE_MB*1048576) return toast('Ảnh quá lớn (tối đa '+MAX_FILE_MB+'MB).','error');
+    if(!confirm('Thay ảnh "'+f.name+'" bằng "'+file.name+'"?')) return;
+    toast('Đang tải ảnh mới lên...');
+    try{
+      const {data:{session}}=await _supabase.auth.getSession();
+      if(!session) throw new Error('Phiên đăng nhập đã hết.');
+      await new Promise((res,rej)=>{
+        const x=new XMLHttpRequest();
+        x.open('POST',supabaseUrl+'/storage/v1/object/'+BUCKET+'/'+f.path);
+        x.setRequestHeader('Authorization','Bearer '+session.access_token);
+        x.setRequestHeader('apikey',supabaseKey);
+        x.setRequestHeader('x-upsert','true');
+        x.upload.onprogress=ev=>{ if(ev.lengthComputable) toast('Đang tải ảnh mới: '+Math.round(ev.loaded/ev.total*100)+'%'); };
+        x.onerror=()=>rej(new Error('Failed to fetch'));
+        x.onload=()=>{ if(x.status>=200&&x.status<300) res(); else { let m='Thay ảnh thất bại ('+x.status+')'; try{ m=JSON.parse(x.responseText).message||m; }catch{} rej(new Error(m)); } };
+        const fd=new FormData(); fd.append('cacheControl','0'); fd.append('',file); x.send(fd);
+      });
+      await rpc('admin_replace_file',{p_id:f.id,p_name:file.name,p_size:file.size,p_mime:file.type||null});
+      toast('Đã thay ảnh thành công.'); loadAdminImages();
+    }catch(err){ toast('Không thay được ảnh: '+translateError(err.message||String(err)),'error'); }
+  };
 
   // ====== KHỞI ĐỘNG ======
   _supabase.auth.onAuthStateChange((event,session)=>{
